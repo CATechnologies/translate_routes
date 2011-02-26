@@ -1,7 +1,6 @@
-# This is my attempt at a restructured TranslateRoutes.
-# I packed everything into a class, which manages the dictionary,
-# and can operate on a specific RouteSet. This class knows nothing
-# about Rails.root or Rails.application.routes, and therefor is easier to
+
+# This class knows nothing
+# about Rails.root or Rails.application.routes, and therefore is easier to
 # test without an Rails App.
 class RouteTranslator
   TRANSLATABLE_SEGMENT = /^(\w+)(\()?/.freeze
@@ -15,7 +14,7 @@ class RouteTranslator
 
   # Attributes
 
-  attr_accessor :prefix_on_default_locale, :dictionary
+  attr_accessor :dictionary
 
   def available_locales
     @available_locales ||= I18n.available_locales.map(&:to_s)
@@ -151,6 +150,7 @@ class RouteTranslator
 
       # save original routes and clear route set
       original_routes = route_set.routes.dup                     # Array [routeA, routeB, ...]
+
       original_named_routes = route_set.named_routes.routes.dup  # Hash {:name => :route}
 
       reset_route_set route_set
@@ -161,13 +161,10 @@ class RouteTranslator
         end
       end
 
-      if root_route = original_named_routes[:root]
-        add_root_route root_route, route_set
-      end
-
       original_named_routes.each_key do |route_name|
         route_set.named_routes.helpers.concat add_untranslated_helpers_to_controllers_and_views(route_name)
       end
+      
     end
 
     # Add unmodified root route to route_set
@@ -186,7 +183,7 @@ class RouteTranslator
     def add_untranslated_helpers_to_controllers_and_views old_name
       ['path', 'url'].map do |suffix|
         new_helper_name = "#{old_name}_#{suffix}"
-
+        
         ROUTE_HELPER_CONTAINER.each do |helper_container|
           helper_container.send :define_method, new_helper_name do |*args|
             send "#{old_name}_#{locale_suffix(I18n.locale)}_#{suffix}", *args
@@ -207,26 +204,21 @@ class RouteTranslator
     # Generate translation for a single route for one locale
     def translate_route route, locale
       conditions = { :path_info => translate_path(route.path, locale) }
-      conditions[:request_method] = route.conditions[:request_method].source.upcase if route.conditions.has_key? :request_method
       requirements = route.requirements.merge LOCALE_PARAM_KEY => locale
+      requirements[:method] = route.requirements[:method].to_s if route.requirements.has_key? :method
       defaults = route.defaults.merge LOCALE_PARAM_KEY => locale
       new_name = "#{route.name}_#{locale_suffix(locale)}" if route.name
 
       [route.app, conditions, requirements, defaults, new_name]
     end
 
-    # Check if a prefix for locale should be added. Is true for all
-    # non-default locales. A prefix for the default_locale can be forced
-    # by setting +prefix_on_default_locale+ to +true+
+    # Add prefix for all non-default locales
     def add_prefix? locale
-      @prefix_on_default_locale || !default_locale?(locale)
+      !default_locale?(locale)
     end
 
     # Translates a path and adds the locale prefix.
     def translate_path path, locale
-      # Hack, please enlighten me with a better way.
-      # without this, formatted root routes "/(.:format)" would translate to
-      # "/de/(.:format)", which doesnt recognize "/de" (but "/de/")
       new_path = if path == "/(.:format)"
         ""
       else
@@ -255,7 +247,7 @@ class RouteTranslator
 
       match = TRANSLATABLE_SEGMENT.match(segment)[1] rescue nil
 
-      translate_string(match, locale) || segment
+      (translate_string(match, locale) || segment).downcase
     end
 
     def translate_string str, locale
@@ -275,10 +267,6 @@ class RouteTranslator
     end
   end
   include Translator
-
-  def initialize
-    @prefix_on_default_locale = false
-  end
 
   def locale_suffix locale
     self.class.locale_suffix locale
