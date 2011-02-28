@@ -246,7 +246,7 @@ class RouteTranslator
     def untranslated_route route
       conditions = { :path_info => route.path }
       requirements = {}
-      route.requirements.each |k,v| do
+      route.requirements.each do |k,v|
         requirements[k] = v.to_s
       end
 
