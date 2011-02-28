@@ -192,7 +192,7 @@ class RouteTranslator
       end
 
       original_named_routes.each_key do |route_name|
-        if localized_routes_names && localized_routes_names.include?(route_name) then
+        if localized_routes_names && localized_routes_names.include?(route_name.to_s) then
           route_set.named_routes.helpers.concat add_untranslated_helpers_to_controllers_and_views(route_name)
         end
       end
@@ -345,7 +345,6 @@ ActionController::Base.class_eval do
   # called by before_filter
   def set_locale_from_url
     I18n.locale = params[RouteTranslator::LOCALE_PARAM_KEY]
-    default_url_options.merge! RouteTranslator::LOCALE_PARAM_KEY => I18n.locale
   end
 end
 
