@@ -84,7 +84,9 @@ class RouteTranslator
       names_before = @set.named_routes.names
       yield
       names_after = @set.named_routes.names
-      @set.localized_routes = names_after - names_before
+      @set.localized_routes ||= []
+      @set.localized_routes.concat(names_after - names_before)
+      @set.localized_routes.uniq!
     end
 
   end
