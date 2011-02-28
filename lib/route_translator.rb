@@ -15,6 +15,7 @@ class RouteTranslator
   # Attributes
 
   attr_accessor :dictionary
+  attr_accessor :localized_routes
 
   def available_locales
     @available_locales ||= I18n.available_locales.map(&:to_s)
@@ -67,6 +68,28 @@ class RouteTranslator
       end
     end
   end
+
+
+  module RouteSet
+    attr_accessor :localized_routes
+  end
+
+
+
+  module Mapper
+
+    private
+
+    def localized
+      names_before = @set.named_routes.names
+      yield
+      names_after = @set.named_routes.names
+      @set.localized_routes = names_after - names_before
+    end
+
+  end
+
+
 
   module DictionaryManagement
     # Resets dictionary and yields the block wich can be used to manually fill the dictionary
@@ -150,21 +173,27 @@ class RouteTranslator
 
       # save original routes and clear route set
       original_routes = route_set.routes.dup                     # Array [routeA, routeB, ...]
-
+      localized_routes_names = route_set.localized_routes.map{|r| r.to_s}
       original_named_routes = route_set.named_routes.routes.dup  # Hash {:name => :route}
 
       reset_route_set route_set
 
       original_routes.each do |original_route|
-        translations_for(original_route).each do |translated_route_args|
-          route_set.add_route *translated_route_args
+        if localized_routes_names && localized_routes_names.include?(original_route.name) then
+          translations_for(original_route).each do |translated_route_args|
+            route_set.add_route *translated_route_args
+          end
+        else
+          route = untranslated_route original_route
+          route_set.add_route *route
         end
       end
 
       original_named_routes.each_key do |route_name|
-        route_set.named_routes.helpers.concat add_untranslated_helpers_to_controllers_and_views(route_name)
+        if localized_routes_names && localized_routes_names.include?(route_name) then
+          route_set.named_routes.helpers.concat add_untranslated_helpers_to_controllers_and_views(route_name)
+        end
       end
-      
     end
 
     # Add unmodified root route to route_set
@@ -210,6 +239,12 @@ class RouteTranslator
       new_name = "#{route.name}_#{locale_suffix(locale)}" if route.name
 
       [route.app, conditions, requirements, defaults, new_name]
+    end
+
+    def untranslated_route route
+      conditions = { :path_info => route.path }
+
+      [route.app, conditions, route.requirements, route.defaults, route.name]
     end
 
     # Add prefix for all non-default locales
@@ -295,6 +330,9 @@ module ActionDispatch
   end
 end
 
+
+
+
 # Add set_locale_from_url to controllers
 ActionController::Base.class_eval do
   private
@@ -314,3 +352,7 @@ RouteTranslator::ROUTE_HELPER_CONTAINER.each do |klass|
     end
   end
 end
+
+
+ActionDispatch::Routing::Mapper.send    :include, RouteTranslator::Mapper
+ActionDispatch::Routing::RouteSet.send  :include, RouteTranslator::RouteSet
