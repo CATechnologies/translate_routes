@@ -245,8 +245,12 @@ class RouteTranslator
 
     def untranslated_route route
       conditions = { :path_info => route.path }
+      requirements = {}
+      route.requirements.each |k,v| do
+        requirements[k] = v.to_s
+      end
 
-      [route.app, conditions, route.requirements, route.defaults, route.name]
+      [route.app, conditions, requirements, route.defaults, route.name]
     end
 
     # Add prefix for all non-default locales
