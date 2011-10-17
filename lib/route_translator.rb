@@ -238,7 +238,8 @@ class RouteTranslator
     # Generate translation for a single route for one locale
     def translate_route route, locale
       conditions = { :path_info => translate_path(route.path, locale) }
-      conditions[:request_method] = route.conditions[:request_method].source.upcase if route.conditions.has_key? :request_method
+      conditions[:request_method] = route.verb.split("|")
+      conditions[:request_method] = ["GET"] if conditions[:request_method].empty?
       requirements = route.requirements.merge LOCALE_PARAM_KEY => locale
       requirements[:method] = route.requirements[:method].to_s if route.requirements.has_key? :method
       defaults = route.defaults.merge LOCALE_PARAM_KEY => locale
@@ -249,7 +250,8 @@ class RouteTranslator
 
     def untranslated_route route
       conditions = { :path_info => route.path }
-      conditions[:request_method] = route.conditions[:request_method].source.upcase if route.conditions.has_key? :request_method
+      conditions[:request_method] = route.verb.split("|")
+      conditions[:request_method] = ["GET"] if conditions[:request_method].empty?
       requirements = {}
       route.requirements.each do |k,v|
         requirements[k] = v.class == Symbol ? v.to_s : v
@@ -264,7 +266,7 @@ class RouteTranslator
 
     # Translates a path and adds the locale prefix.
     def translate_path path, locale
-      final_optional_segments = path.match(/(\(.+\))$/)[1] rescue nil   # i.e: (.:format)
+      final_optional_segments = path.match(/(\(.+\))$/)[1] rescue ""   # i.e: (.:format)
       path_segments = path.gsub(final_optional_segments,'').split("/")
       new_path = path_segments.map{ |seg| translate_path_segment(seg, locale) }.join('/')
       new_path = "/#{locale.downcase}#{new_path}" if add_prefix? locale
